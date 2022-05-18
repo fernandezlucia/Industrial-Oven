@@ -1,0 +1,358 @@
+\documentclass[article]{article}
+\usepackage[a4paper,margin=1in,footskip=0.25in]{geometry}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{charter}   % tipografia
+\usepackage{graphicx}
+\usepackage{paralist} %itemize inline
+\usepackage{mathtools}
+\usepackage{caption}
+\usepackage{hyperref}
+
+\usepackage{underscore}
+\usepackage{caratula}
+\usepackage{url}
+
+\begin{document}
+
+\thispagestyle{empty}
+\materia{Métodos Numéricos}
+\submateria{Primer Cuatrimestre de 2022}
+\titulo{Trabajo Práctico I}
+\subtitulo{Implementación de algoritmia para búsqueda de isoterma.}
+\integrante{Matias Cozzani}{915/19}{matcozzani@gmail.com}
+\integrante{José Luis Seisdedos}{797/19}{jlseisdedos11@gmail.com}
+\integrante{Lucia Fernandez}{832/19}{lucif268@gmail.com}
+
+
+
+\maketitlegraf
+
+\tableofcontents
+
+\newpage
+\section{Introducción}
+\subsection{Contexto}
+
+Se plantea una situación en la que queremos estudiar la estructura de un horno de acero cilíndrico. A través del conocimiento de la temperatura interior del horno, y la temperatura exterior en distintos puntos medida a través de sensores apostados en la pared exterior queremos determinar la temperatura a lo largo del interior de la pared con el objetivo de determinar la existencia de una isoterma -vector de puntos a lo largo de una región en un instante particular de tiempo- particular para determinar si la estructura antes mencionada corre peligro de colapsar o no. Si esta isoterma particular existe, y se encuentra muy próxima a la pared externa del horno podríamos estar en una situación de colapso. Nuestro objetivo es implementar un programa que a través de calculo computacional nos permita encontrarla si es que esta isoterma existe.
+
+\subsection{El modelo}
+A partir de este contexto es importante determinar un modelo apropiado para atacar el problema computacionalmente. Para ello primero haremos un pequeño análisis teórico del mismo.
+
+Estudiaremos la estructura del horno a través del análisis de una sección horizontal del mismo, por lo que se determinó que la mejor estrategia de modelado es la utilización de puntos determinados por coordenadas polares, donde asignaremos una función de temperatura T(r, $\theta$) que se corresponderá con la temeperatura del punto en el radio $r$ de ángulo $\theta$. Se nos garantiza que en un estado estacionario, dichos puntos satisfacen la ecuación de calor dada por:
+
+\begin{equation}
+\frac{\partial^{2} T(r, \theta)}{\partial r^{2}}
++ \frac{1}{r} \frac{\partial T(r, \theta)}{\partial r} + \frac{1}{r^{2}} \frac{\partial^{2} T(r, \theta)}{\partial \theta^{2}} = 0
+\end{equation}
+
+Sea $r_{e} \in \mathbb{R}$ el radio exterior de la pared y sea $r_{i} \in \mathbb{R}$ el radio interior de la pared.
+
+Sea $T_{i} \in \mathbb{R}$ la temperatura en el interior del horno y sea $T_{e} : [0, 2\pi] \Rightarrow \mathbb{R}$ la función de temperatura en el radio exterior del horno
+
+Luego, sabemos que:
+
+\begin{itemize}
+    \item T(r, $\theta$) = $T_{i} \forall (r, \theta) : r \leq r_{i} $
+    \item T($r_{e}, \theta$) = T$_{e}(\theta) \forall (r_{e}, \theta)$
+\end{itemize}
+
+Con esta información podríamos resolver el problema calculando en papel, el problema es que nosotros queremos buscamos una aproximación computacional basada en algoritmos de resolución por lo que estamos obligados a pasar del problema continuo y considerar una discretización del mismo. Para eso, consideraremos dos particiones para el dominio del problema:
+
+\begin{itemize}
+    \item 0 = $\theta_{0} < \theta_{1} < ... < \theta_{n} = 2\pi$ en n ángulos discretos con $\theta_{k} - \theta_{k-1} = \Delta\theta$ para k = 1,.....,$n$.
+    \item $r_{i} = r_{0} < r_{1} < ... < r_{m} = r_{e}$ en $m + 1$ radios discretos con $r_{j} - r_{j-1} = \Delta r$ para $j$ = 1,....,$m$.
+\end{itemize}
+
+Entonces el problema ahora consiste en determinar el valor de la función T en los puntos de la discretización $(r_{j}, \theta_{k})$. Llamaremos $t_{j}_{k}$ = T($r_{j}, \theta_{k})$.
+
+Una vez discretizado el dominio del problema podemos proceder a discretizar el cálculo de la ecuación de calor, para ello aproximaremos las derivadas parciales a través de diferencias finitas por lo que las derivadas quedarían de la siguiente manera:
+
+\begin{equation}
+    \frac{\partial T(r, \theta)}{\partial r}(r_{j}, \theta_{k}) \cong \frac{t_{j,}_{k} - t_{j-1,}_{k}}{\Delta r}
+\end{equation}
+
+\begin{equation}
+    \frac{\partial^{2} T(r, \theta)}{\partial r^{2}}(r_{j}, \theta_{k}) \cong \frac{t_{j-1,}_{k} - 2t_{j}_{k} +  t_{j+1,}_{k}}{(\Delta r)^{2}}
+\end{equation}
+
+\begin{equation}
+    \frac{\partial^{2} T(r, \theta)}{\partial \theta^{2}}(r_{j}, \theta_{k}) \cong \frac{t_{j,}_{k-1} - 2t_{j}_{k} +  t_{j,}_{k+1}}{(\Delta \theta)^{2}}
+\end{equation}
+
+Utilizando las expresiones discretas de las derivadas parciales podemos reemplazar en la ecuación de calor:
+
+\begin{equation}
+    \frac{t_{j-1,}_{k} - 2t_{j}_{k} +  t_{j+1,}_{k}}{(\Delta r)^{2}} + \frac{1}{r} \frac{t_{j,}_{k} - t_{j-1,}_{k}}{\Delta r} + \frac{1}{r^{2}} \frac{t_{j,}_{k-1} - 2t_{j}_{k} +  t_{j,}_{k+1}}{(\Delta \theta)^{2}} = 0
+\end{equation}
+
+Sacando factor común se deduce que:
+
+\begin{equation}
+    t_{j-1}_{k}(\frac{1}{(\Delta r)^{2}} - \frac{1}{r\Delta r}) + t_{j}_{k}(\frac{-2}{(\Delta r)^{2}} + \frac{1}{r\Delta r} - \frac{2}{r^{2}(\Delta \theta)^{2}}) + t_{j+1}_{k}(\frac{1}{(\Delta r)^{2}}) + t_{j}_{k-1}(\frac{1}{r^{2}(\Delta \theta)^{2}}) + t_{j}_{k+1}(\frac{1}{r^{2}(\Delta \theta)^{2}}) = 0
+\end{equation}
+
+Por último se nota que recorriendo todos los puntos de la discretización del dominio se obtiene un sistema de ecuaciones lineales cuya solución nos permite obtener las temperaturas para todos los puntos de la discretización.
+
+
+\subsection{Implementación}
+Dado que se presentará el informe acompañado del código no se realizará un análisis muy detallado del mismo. Solamente se profundizará en algunos detalles con respecto a la creación de la matriz que modela el sistema.
+
+En términos generales el código está implementado en C++, el programa recibe como parámetros el archivo de entrada -compuesto por una primer linea donde se guardan los valores que corresponden a la cantidad de ángulos, de radios, el valor de la isoterma buscada, radio exterior e interior y la cantidad de instancias a resolver para los parámetros dados, acompañados de cantidad de instancias líneas que indican los valores de temperaturas interiores y exteriores- el archivo de salida -el cual contendrá el vector solución del sistema- y el método a ejecutar (EG o LU).
+
+La estructura que modela el sistema es un vector de vectores. Se decidió esto debido a la facilidad con la que se puede trabajar sobre los mismos.
+
+Independientemente del método elegido por parámetro comenzaremos creando una matriz tal que tiene 0 en todas las posiciones de exactamente $n x n$ siendo que $n = cantRadios * cantAngulos$. Luego se confecciona el vector B que considera tres casos:
+    
+\begin{itemize}
+    \item Si estamos en las primeras $cantAngulos$ filas, entonces el vector B tendrá los valores de las temperaturas interiores.
+    \item Si estamos en las últimas $cantAngulos$ filas entonces el vector B tendrá las temperaturas exteriores.
+    \item En cualquier otro caso, valdrá 0.
+\end{itemize}
+
+A continuación, dependiendo del método elegido se procederá de una u otra forma:
+
+\begin{itemize}
+    \item \textbf{Eliminación Gaussiana}:
+    En caso de haber elegido la eliminación gaussiana procederemos a \href{https://campus.exactas.uba.ar/pluginfile.php/351002/course/section/41813/Sistemas\%20lineales-2022.pdf#page=47}{aplicar el algoritmo} para luego realizar una \href{https://campus.exactas.uba.ar/pluginfile.php/351002/course/section/41813/Sistemas\%20lineales-2022.pdf#page=17}{backward-substitution} para resolver el sistema.
+    
+    \item \textbf{Factorización LU}:
+    Utiliza las fuciones L que devuelve la L de la factorización -es una eliminación gaussiana que gaurda los coeficientes debajo de la diagonal y pone 1 en la misma-, la función de eliminación gaussiana para la U y luego ResoLU que resuelve el \href{https://campus.exactas.uba.ar/pluginfile.php/351002/course/section/41813/LU-2022.pdf#page=8}{nuevo sistema.}
+\end{itemize}
+
+Algo muy importante a notar es que cuando el set de ecuaciones recorre valores que caigan en el radio interno o en el radio estamos frente a datos conocidos, lo que permite deducir que en realidad no necesitamos esas ecuaciones dentro del sistema. Esto quiere decir que tanto para las primeras cantAngulos como para las últimas cantAngulos filas podemos poner 1 en la diagonal y emparejar con el vector b el dato que entra por parámetro.
+
+Teniendo esto en cuenta y si tomamos las ecuaciones de Laplace haciendo el siguiente reemplazo en los coeficientes, la estructura de la matriz resultante es algo de este estilo: 
+
+
+
+\begin{equation}
+    
+    
+    \alpha =(\frac{-2}{(\Delta r)^{2}} + \frac{1}{r\Delta r} - \frac{2}{r^{2}(\Delta \theta)^{2}})\\
+    
+    \beta =(\frac{1}{(\Delta r)^{2}} - \frac{1}{r\Delta r})\\
+    
+    \gamma =(\frac{1}{(\Delta r)^{2}})\\
+    
+    \delta = (\frac{1}{r^{2}(\Delta \theta)^{2}}) \\
+    
+    \epsilon = (\frac{1}{r^{2}(\Delta \theta)^{2}}) \\
+    
+\end{equation}
+%% j k -> diagonal 
+%% j k + 1 -> derecha 
+%% j k - 1 -> izquierda 
+%% j + 1 k -> cantAngulos veces derecha
+%% j - 1 k -> cantAngulos veces izquierda
+%% m[i] -> iesima fila 
+%% 0 < i < cantAngulos || cantAngulos*cantRadios - cantAngulos < i < cantAngulos*cantRadios -> ei  
+
+%% 0,0,0... \beta ... \delta \alpha \epsilon ... \gamma 0 ... 0
+	$$
+	\begin{bmatrix} 
+	1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 &...& 0 \\
+	0 & 1 & 0 & 0 & 0 & 0 & 0 & 0 &...& 0 \\
+	. &\\
+	. &\\
+	0 & 0 & 0 & ... & 1 & 0 &  &  &...& 0 \\
+	\beta & ...& \delta & \alpha & \epsilon & ... & \gamma & ... & 0 & 0 \\
+	0 & \beta & ...& \delta & \alpha & \epsilon & ... & \gamma & ... & 0 \\
+	0 & 0 & \beta & ...& \delta & \alpha & \epsilon & ... & \gamma & ... \\
+	... & 0 & 0 & \beta & ...& \delta & \alpha & \epsilon & ... & \gamma& \\
+	0 & ... &  &  & 0 & 1 & 0 &  & ... & 0 \\
+	. &\\
+	. &\\
+	0 &...& 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 \\
+	0 &...& 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 \\
+	\end{bmatrix}
+	\quad
+	$$
+	
+	ALGUNA VERSION MAS LINDA DE ESTO???
+	
+Al momento de implementar el sistema se decidió que en la diagonal quedará el valor de la incógnita correspondiente a $t_{j}_{k}$ -es decir, el punto central que depende de los 4 vecinos- ya que de esta manera podemos lograr una configuración diagonal dominante. Adicionalmente sabemos que la diagonal no tiene elemento nulo, dado que al ser diagonal dominante sabemos que $|\alpha| \geq |\beta| + |\delta| + |\gamma| + |\epsilon|$ y como ninguno de estos cuatro vecinos es nulo, entonces la suma en modulo de ellos tampoco lo es. De esta forma sabemos que podemos utilizar el algoritmo de eliminacion gausseana sin la necesidad de utilizar pivoteo.
+
+SUBMATRICES NO SINGULARES????
+
+\subsubsection{Analisis del tipo de matriz obtenida}
+Como se puede observar en el grafico anterior, la matriz del sistema posee los canonicos $e_1 ... e_{cantAngulos}$ en las primeras filas, los $e_{n-cantAngulos},..., e_n$ en las ultimas y en el medio tiene una forma de $banda$. Este tipo de matrices se caracterizan por tener valores no nulos en un entorno de la diagonal principal y por arriba y por debajo de dicha banda tenemos ceros semejantemente a matrices triangulares. 
+
+En este caso podemos observar que el valor $\alpha$ conforma la diagonal principal y esta acompanado por 4 diagonales adyacentes. 
+\subsubsection{Busqueda de la Isoterma y peligrosidad de la misma}
+Una vez resuelto el sistema de ecuaciones, obtendremos un vector de $n = cantRadios * cantAngulos$ elementos con las temperaturas de los puntos en el orden antes descripto; este es el segundo dato de entrada que utilizaremos para encontrar la isoterma en la temperatura dada.
+
+La isoterma es un vector de $cantAngulos$ elementos cuyo indice $i$ simboliza el angulo en el que estamos parados y la posicion $i$ el numero de radio en el que la temperatura tiene un valor cercano a $iso$.
+Para encontrarla nos paramos en el angulo $i$ y recorremos los radios que lo intersectan guardandonos la temperatura del punto en el que estamos parados ($currentTemp$) y el anterior ($prevTemp$). De esta forma avanzamos hasta que el punto en el que estemos parados sea menor a $iso$. Una vez llegada esta instancia del ciclo debemos comparar ambos puntos que tenemos (el anterior y el presente) para verificar cual de ambos es mas cercano a $iso$ y de esta manera determinamos el que se guarda en la posicion $i$ del vector.
+
+Una vez encontrada la isoterma, debemos determinar un criterio para decidir si su posicion resulta peligrosa para la correcta utilizacion del alto horno. Ya describimos anteriormente que la isoterma es una especie de radio en el cual tenemos todos los puntos cuya temperatura sea cercana a 500°; por esta definicion la forma que tenga, es decir la semajanza a un circulo o a algun poligono, queda determinada directamente por la calidad de la discretizacion que hayamos elegido. Esta es la razon por la que cualquier criterio que se elija para definir su peligrosidad debe depender de la cantidad de radios y particularmente angulos que se hayan elegido para la instancia en cuestion.
+
+En principio podriamos pensar que con una buena cantidad de angulos seria suficiente para lograr una buena isoterma mas bien redondeada, sin embargo si esto no es acompanado por una buena cantidad de angulos perdemos calidad de discretizacion; es decir nuestra configuracion de valores no alcanza para cubrir el area que queremos modelar de manera representativa y por consecuente confiable.
+
+Por otro lado es importante observar que la regularidad del poligono que observaremos en los graficos de la isoterma depende directamente de los datos de entrada con los que contemos a la hora de buscarla. 
+En principio propongamos alguna instancia simple, como por ejemplo ocho angulos y 4 radios: si los valores de entrada, es decir las temperaturas de las paredes interna y externa son constantes o tienen poca variacion a lo largo de su respectiva circunferencia, veremos que la isoterma tiene forma octogonal. Mientras que en una que tenga mayor variacion de temperaturas internas y externas observaremos un poligono mas irregular. Esto se transfiere a instancias en las que tengamos mayor cantidad de radios y angulos, la semejanza a un circulo, un ovalo o alguna otra forma irregular quedara determinada por los datos de entrada del sistema de ecuaciones.
+
+Teniendo en cuenta estas observaciones proponemos un criterio en el que la peligrosidad de la isoterma este determinada por su cercania a un radio en particular. Tomamos como parametro un $radioPeligroso$ que debe contener a la isoterma para que esta resulte segura; este radio esta definido a partir de la cantidad de radios que tenga la discretizacion y posicionado en el radio que contiene al 80$\%$ de los radios elegidos:
+\begin{equation}
+    radioPeligroso = cantRadios*\frac{3}{4}
+\end{equation}
+De esta manera decidimos si la isoterma resulta peligrosa si alguno de sus elementos pertenece o sobrepasa este radio hacia afuera.
+En el caso de que las temperaturas inciales sean uniformes, entonces el $radioPeligroso$ contiene aproximadamente al 80$\%$ las temperaturas mas calientes. En caso de que las temperaturas iniciales sean disparejas entonces algunas temperaturas calientes sobrepasaran el $radioPeligroso$ en algunas zonas y en otras no; asi obtendremos un alto horno con regiones peligrosas a lo largo de su perimetro
+
+\section{Experimentacion}
+Con respecto a la experimentación se realizarán los siguientes experimentos:
+
+\begin{itemize}
+    \item \textbf{1:} Se estudiará la proximidad de la isoterma respecto de la pared exterior en función de distintas granularidades de discretización.
+    
+    \item \textbf{2:} Se consideraran varias instancias de prueba utilizando distintas discretizaciones para cáda una de ellas con el fin de estudiar la diferencia en la ubicación de la isoterma para cáda una de ellas, y, en particular, para comparar cada ubicación contra la pared externa del horno.
+    
+    \item \textbf{3:} Se analizará el consumo computacional de los métodos en función de la granularidad de la discretización.
+\end{itemize}
+
+Todos los experimentos fueron corridos en el mismoEL MISMO QUE? dedicando todo el mismo a la experimentación en sí a fin de disminuir lo mayor posible la aparición de ruido en las mediciones.
+
+\subsection{Experimento 1: Posición de isoterma en función de discretizaciones y condiciones borde.}
+
+Para esta experimentación se medirá la posición de la isoterma en función de la discretización utilizada. En parte, los casos de test para este experimento son los mismos que los utilizados para la medición del tiempo a fin de aprovechar los resultados ya obtenidos. Además se agregaron experimentos que configuran cambios en las condiciones borde también partiendo de una discretización particular (la utilizada en el experimento 1\_4) que nos pareció lógica en terminos de cantidad de ángulos y radios a fin de obtener formas de isotermas con mas sentido.
+
+Lo que se espera ver es que configuraciones con una granularidad de discretización mucho mayor exhiban tanto isotermas mas circulares basados en que la cantidad de puntos de la isoterma depende de la cantidad de ángulos elegidos. 
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.8]{Experimento1_1.png}}
+\caption{Gráfico de la isoterma para el experimento 1_1.}
+\label{figura1}
+\end{figure}
+
+La discretizacion del Experimento1\_1 cuenta con 10 radios y 5 angulos. En la Figura 1 podemos observar que la isoterma se encuentra entre los radios mientras que el radio peligroso se posiciona en el 8.78. REDONDEO?.
+
+El grafico exhibe claramente como la forma poligonal de la isoterma depende de la decision de elegir una pequena cantidad de angulos. Sin embargo la amplitud del angulo de esta configuracion deja mucho espacio no representado, lo cual nos lleva a deducir que no resulta muy confiable, en especial si hablamos de un horno de gran tamano.
+
+\begin{figure}[!htbp]
+\centerline{\includegraphics[scale=0.8]{Experimento1_2.png}}
+\caption{Gráfico de la isoterma para el experimento 1_2.}
+\label{figura2}
+\end{figure}
+
+El experimento 1\_2 incrementa a 50 la cantidad de ángulos, lo cual razonablemente termina produciendo una forma de la isoterma mucho mas redondeada. Al no haber variado los radios, el radio peligroso se encuentra en el mismo lugar que antes pero si observamos la isoterma, esta vez encontramos que el aumento de puntos nos lleva a ver que las zonas que no representabamos con la anterior granularidad de hecho eran mas calientes de lo que se veia. Esta nueva cantidad de angulos modela mejor la disposicion de las temperaturas y por eso observamos ahora que la isoterma se encuentra entre los radios 5.44 y 6.56, es decir mas cerca del radio peligroso.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.8]{Experimento1_3.png}}
+\caption{Gráfico de la isoterma para el experimento 1_3.}
+\label{figura3}
+\end{figure}
+
+El Experimento1\_3 se asemeja mucho al caso del 1\_2 en lo que a la isoterma respecta. Se evidencia que incrementar la cantidad de radios hace que la forma poligonal sea mucho mas regular que la anterior a diferencia de incrementar la suavidad del mismo como hacen los ángulos.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.8]{Experimento1_4.png}}
+\caption{Gráfico de la isoterma para el experimento 1_4.}
+\label{figura4}
+\end{figure}
+
+En el Experimento1\_4 se tomaron 50 angulos y 50 radios. La figura demuestra una isoterma mucho más parecida a una circunferencia que el caso del test 1\_2. Los maximos y minimos de la isoterma se encuentran en los radios 20.39 y 27.53 y ambien se observa que la region inferior derecha del grafico esta mas cercana al radio peligroso que la superior, lo cual da indicios de mayor temperatura en la zona.
+
+En lineas generales la distancia al radio peligroso pareciera ser la misma que en los maximos del test 1\_2 lo cual nos hace replantear el aporte de una cantidad de radios elevada como 50. 
+
+\subsubsection{Conclusion}
+Del anterior experimento se determino que la cantidad de angulos determina la suavidad del poligono que forma la isoterma y que la cantidad de angulos lo regulariza. En base a esto concluimos que una cantidad de angulos elevada es conveniente en lo que a representacion respecta pero una cantidad elevada de radios complejiza el modelado del problema y no nos trae un gran aporte. 
+
+\subsection{Experimento 2: Evaluación de distintas instancias para mismas granularidades.}
+
+Este experimento utilizará como base los resultados obtenidos en el anterior, se derermino una cantidad de radios de 25 y de angulos 50 ya que consideramos que resulta una discretización coherente en terminos de que permite analizar mas controlada y exhaustivamente el problema.
+
+Este experimento busca exponer como las temperaturas internas y externas afectan la posicion de la isoterma en base a la discretizacion antes propuesta.
+Sabemos que las temperaturas del interior del horno equivalen a 1500° y las exteriores varian habitualmente entre 50° y 200°
+
+\begin{figure}[!htbp]
+\centerline{\includegraphics[scale=0.8]{img/Experimento2_5.png}}
+\caption{Gráfico de la isoterma para el experimento 2_1. Caso base}
+\label{figura2}
+\end{figure}
+
+El primer caso de test para el presente experimento consta de una instancia hipotetica que consideramos base; la mayor temperatura en el radio interno y cero grados en la pared exterior. Estos datos de entrada sientan una buena base para contrastar la posicion de la isoterma en los siguentes.
+
+Como vemos, el radio peligroso equivale al radio 19.75 y la isoterma se posiciona entre los radios 11.42 y 15.58, es decir tenemos una distancia de aproximadamente cuatro radios entre ambos y tambien de 4 entre el maximo y el peligroso.
+
+\newpage
+
+\begin{figure}[!htbp]
+\centerline{\includegraphics[scale=0.8]{img/Experimento2_2.png}}
+\caption{Gráfico de la isoterma para el experimento 2_2. 
+Variacion de temperaturas externas}
+\label{figura2}
+\end{figure}
+
+En el experimento2\_2 consideramos una instancia que podria considerarse habitual de acuerdo al valor de los radios internos y externos proporcionados por la catedra. Se pusieron como datos de entrada 1500° en el interior del horno y una variacion de temperaturas que van desde 50° a 200° con intervalos de 25°. Logicamente un aumento de temperatura nos lleva a pensar que la isoterma se desplazara y efectivamente asi fue. Esta vez la isoterma se encuentra acotada por los radios 13.50 y 17.57 es decir, sigue contenida dentro de 4 radios pero esta un poco movida hacia afuera; ahora la distancia entre el maximo y el peligroso es de 2 radios.
+
+\begin{figure}[!htbp]
+\centerline{\includegraphics[scale=0.8]{img/Experimento2_3.png}}
+\caption{Gráfico de la isoterma para el experimento 2_3. Variacion de temperaturas internas y maxima externa}
+\label{figura2}
+\end{figure}
+
+Como tercer test propusimos una temperatura interna de entre 1000° y 1500° con variaciones de 100° entre ellas y como externa la maxima posible; 200°. 
+Como podemos ver en la figura 7, la disminucion de la temperatura en algunos puntos internos hace que la isoterma tenga menos variacion y se contenga entre los radios 13.50 y 16.63, redujo su extension en un  radio y esto la situa mas mas lejos del radio peligroso que en el experimento anterior.
+
+\begin{figure}[!htbp]
+\centerline{\includegraphics[scale=0.8]{img/Experimento2_4.png}}
+\caption{Gráfico de la isoterma para el experimento 2_4. Maximas temperaturas internas y externas}
+\label{figura2}
+\end{figure}
+
+Como ultima instancia propusimos las maximas temperaturas internas y externas, 1500° y 200° respectivamente.
+Logicamente, al reducir el rango de posibles temperaturas en los puntos de la discretizacion obtenemos una isoterma que vuelve a estar contenida dentro de 4 radios, pero esta vez aun mas corrida hacia afuera; se posiciona entre los radios 14.54 y 18.71. El radio peligroso sigue estando en 19.75, lo que implica que el maximo y este estan a un radio de distancia. Esto en si mismo no es alarmante, pues aun no se ha sobrepasado ese umbral, pero es un claro ejemplo de como debiera ser una instancia que ponga en peligro la estructura del horno.
+
+\subsubsection{Conclusion} En resumen las variaciones de temperatura normales no resultan peligrosas para la integridad del alto horno, es decir mantienen la isoterma por dentro del radio peligroso.
+
+Las temperaturas se distribuyen a lo largo de la circunferencia de manera bastante uniforme a menos que se presenten instancias muy extremas.
+
+ES NECESARIO PONER ALGUNA INSTANCIA EXTREMA???????
+
+\subsection{Experimento 3: Consumo en función de la granularidad}
+
+En este caso se consideran 4 casos de test particulares $(TestExperimento1_1,...,TestExperimento1_4)$ en los cuales se incrementa en uno la cantidad de ángulos, en otro la cantidad de radios y en otro ámbas al mismo tiempo. Todos parten de una estandarización mas bien pequeña $(TestExperimento1_1)$.
+
+Lo que se esperaba observar a modo de hipótesis es que observando que la complejidad de los algoritmos utilizados en la implementación de los mismos siempre termina escalando en función del tamaño de la matriz, cualquier incremento lo suficientemente alto tanto en $cantAngulos$ como en $cantRadios$ impactará negativamente en el rendimiento medido en terminos del tiempo tardado en resolver el problema.
+
+\newpage
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.5]{img/experimento1_1tiempo.png}}
+\caption{Gráfico de cajas correspondiente a las 20 corridas del experimento 1_1.}
+\label{figura5}
+\end{figure}
+
+Como se esperaba, el experimento 1\_1 estando configurado con 10 radios y 5 ángulos termina muy rápidamente.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.5]{img/experimento1_2tiempo.png}}
+\caption{Gráfico de cajas correspondiente a las 20 corridas del experimento 1_2.}
+\label{figura6}
+\end{figure}
+
+El experimento 1\_2 está configurado con 10 radios y 50 ángulos. Si bien el experimento 1\_2 también termina muy rápido en terminos absolutos, cuando es comparado contra lo que tardó el experimento 1\_1 se evidencia un incremento en el tiempo tardado del $100$\%
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.5]{img/experimento1_3tiempo.png}}
+\caption{Gráfico de cajas correspondiente a las 20 corridas del experimento 1_3.}
+\label{figura7}
+\end{figure}
+
+El experimento 1\_3 está configurado con 50 radios pero 5 ángulos. El tiempo requerido para la ejecución de los algoritmos también se incrementó respecto del experimento 1\_1 pero es despreciable comparado con el incremento que hubo entre el 1\_1 y el 1\_3.
+\newpage
+
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[scale=0.5]{img/experimento1_4tiempo.png}}
+\caption{Gráfico de cajas correspondiente a las 20 corridas del experimento 1_4.}
+\label{figura8}
+\end{figure}
+
+El experimento 1\_4 está configurado con 50 radios y 50 ángulos, lógicamente esta configuración eleva significativamente el costo de ejecución del programa y por ende el tiempo destinado para ejecutarlo. Comparado con el experimento 1\_1 se observa un incremento en costo del $1000$\%. Si bien se podría seguir intentando combinaciones posibles para medir como repercuten se cree que estos 4 experimentos fueron suficiente para corroborar la hipótesis inicial. Algo que se notó en la experimentación es que el incremento en la cantidad de ángulos impacta mucho más que el incremento en la cantidad de radios algo que a priori no había sido considerado pero que en efecto es muy razonable: por las decisiones tomadas al momento del modelado y de la implementación de los algoritmos la cantidad de ángulos termina siendo más veces requerido en la ejecución de ciclos que la cantidad de radios.
+
+\subsection{Conclusiones}
+En lineas generales 
+\end{document}
+
+
